@@ -1,0 +1,61 @@
+﻿@page "/journaleditor"
+<NavMenu />
+<div style="margin-left: 220px; padding: 20px;">
+    <div style="max-width: 900px; margin: 0 auto; background: white; border-radius: 20px; padding: 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+        <h3>Today's Journal - @DateTime.Now.ToString("dddd, MMMM dd")</h3>
+        <div style="margin-bottom: 30px;">
+            <label style="display: block; margin-bottom: 15px; font-weight: 600;">How are you feeling?</label>
+            <button style="padding: 10px 20px; border: 2px solid #e0e0e0; background: white; border-radius: 25px; margin-right: 10px; @(selectedMood == "happy" ? "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;" : "")"
+                    @onclick="@(() => SelectMood("happy"))">
+                😊 Happy
+            </button>
+            <button style="padding: 10px 20px; border: 2px solid #e0e0e0; background: white; border-radius: 25px; @(selectedMood == "sad" ? "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;" : "")"
+                    @onclick="@(() => SelectMood("sad"))">
+                😢 Sad
+            </button>
+        </div>
+        <input @bind="title" placeholder="Give your day a title..."
+               style="width: 100%; padding: 15px; margin-bottom: 20px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 18px;" />
+        <textarea @bind="content" placeholder="Write about your day..."
+                  style="width: 100%; min-height: 300px; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px;"></textarea>
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div style="padding: 15px; margin: 20px 0; border-radius: 10px; text-align: center; @(message.StartsWith("✓") ? "background: #d4edda; color: #155724;" : "background: #f8d7da; color: #721c24;")">
+                @message
+            </div>
+        }
+        <button @onclick="SaveEntry" style="width: 100%; padding: 18px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: 600;">
+            💾 Save Journal Entry
+        </button>
+    </div>
+</div>
+@code {
+    private string title = "";
+    private string content = "";
+    private string selectedMood = "happy";
+    private string message = "";
+
+    private void SelectMood(string mood)
+    {
+        selectedMood = mood;
+    }
+
+    private async Task SaveEntry()
+    {
+        message = "Saving...";
+        await Task.Delay(500);
+        try
+        {
+            // Simulate save - replace with your service call when ready
+            message = "✓ Journal saved successfully!";
+            await Task.Delay(2000);
+            message = "";
+        }
+        catch
+        {
+            message = "❌ Save failed";
+            await Task.Delay(2000);
+            message = "";
+        }
+    }
+}

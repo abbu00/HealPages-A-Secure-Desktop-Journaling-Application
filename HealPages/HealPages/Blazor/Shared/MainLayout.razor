@@ -1,0 +1,109 @@
+<div class="app-container">
+    <nav class="sidebar">
+        <div class="logo">
+            <h2>📔 HealPages</h2>
+        </div>
+        <ul class="nav-menu">
+            <li class="@GetActiveClass("journal")" @onclick='() => NavigateTo("journal")'>
+                <span class="icon">✍️</span>
+                <span>Today's Journal</span>
+            </li>
+            <li class="@GetActiveClass("calendar")" @onclick='() => NavigateTo("calendar")'>
+                <span class="icon">📅</span>
+                <span>Calendar</span>
+            </li>
+            <li class="@GetActiveClass("entries")" @onclick='() => NavigateTo("entries")'>
+                <span class="icon">📚</span>
+                <span>All Entries</span>
+            </li>
+            <li class="@GetActiveClass("stats")" @onclick='() => NavigateTo("stats")'>
+                <span class="icon">📊</span>
+                <span>Statistics</span>
+            </li>
+        </ul>
+    </nav>
+    
+    <main class="content-area">
+        @ChildContent
+    </main>
+</div>
+
+<style>
+    .app-container {
+        display: flex;
+        height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .sidebar {
+        width: 250px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 20px;
+        box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .logo h2 {
+        margin: 0 0 40px 0;
+        color: #667eea;
+        font-size: 24px;
+        text-align: center;
+    }
+    
+    .nav-menu {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .nav-menu li {
+        padding: 15px 20px;
+        margin-bottom: 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        color: #333;
+        font-weight: 500;
+    }
+    
+    .nav-menu li:hover {
+        background: #f0f0f0;
+        transform: translateX(5px);
+    }
+    
+    .nav-menu li.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .nav-menu .icon {
+        font-size: 20px;
+    }
+    
+    .content-area {
+        flex: 1;
+        padding: 40px;
+        overflow-y: auto;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+    
+    private string currentPage = "journal";
+    
+    private void NavigateTo(string page)
+    {
+        currentPage = page;
+        StateHasChanged();
+    }
+    
+    private string GetActiveClass(string page)
+    {
+        return currentPage == page ? "active" : "";
+    }
+}

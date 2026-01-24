@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="HealPages.Views.MainPage"
+             Title="HealPages">
+    
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Top Navbar -->
+        <BoxView Grid.Row="0" 
+                 BackgroundColor="#667eea" 
+                 HeightRequest="60">
+            <Label Text="HealPages" 
+                   TextColor="White" 
+                   FontSize="20" 
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center" 
+                   VerticalOptions="Center" />
+        </BoxView>
+        
+        <!-- Journal Content -->
+        <ScrollView Grid.Row="1" Padding="20">
+            <VerticalStackLayout Spacing="20">
+                <Label Text="Today's Journal" 
+                       FontSize="28" 
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center" />
+                
+                <Label Text="Friday, January 23" 
+                       FontSize="16" 
+                       TextColor="Gray"
+                       HorizontalOptions="Center" />
+                
+                <HorizontalStackLayout Spacing="10" HorizontalOptions="Center">
+                    <Button Text="😊 Happy" 
+                            BackgroundColor="White" 
+                            TextColor="#667eea"
+                            CornerRadius="25"
+                            Padding="20,12" />
+                    <Button Text="😢 Sad" 
+                            BackgroundColor="White" 
+                            TextColor="#667eea"
+                            CornerRadius="25"
+                            Padding="20,12" />
+                </HorizontalStackLayout>
+                
+                <Entry Placeholder="Give your day a title..." 
+                       BackgroundColor="White"
+                       HeightRequest="50" />
+                
+                <Editor Placeholder="Write about your day..." 
+                        BackgroundColor="White"
+                        HeightRequest="300" />
+                
+                <Button Text="💾 Save Journal Entry"
+                        BackgroundColor="#667eea"
+                        TextColor="White"
+                        CornerRadius="12"
+                        FontAttributes="Bold"
+                        FontSize="18"
+                        HeightRequest="50" />
+            </VerticalStackLayout>
+        </ScrollView>
+        
+        <!-- Bottom Nav -->
+        <BoxView Grid.Row="2" 
+                 BackgroundColor="#f8f9fa"
+                 HeightRequest="60">
+            <HorizontalStackLayout>
+                <Label Text="Journal | Home | Stats" 
+                       FontSize="14"
+                       HorizontalOptions="Center" 
+                       VerticalOptions="Center" />
+            </HorizontalStackLayout>
+        </BoxView>
+    </Grid>
+</ContentPage>

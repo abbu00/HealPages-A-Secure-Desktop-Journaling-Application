@@ -1,0 +1,8 @@
+C:\Users\caada\source\repos\HealPages\HealPages\obj\Debug\net8.0-windows10.0.19041.0\win10-x64\HealPages.csproj.AssemblyReference.cache
+C:\Users\caada\source\repos\HealPages\HealPages\obj\Debug\net8.0-windows10.0.19041.0\win10-x64\Platforms\Windows\App.g.i.cs
+C:\Users\caada\source\repos\HealPages\HealPages\obj\Debug\net8.0-windows10.0.19041.0\win10-x64\Platforms\Windows\App.g.cs
+C:\Users\caada\source\repos\HealPages\HealPages\obj\Debug\net8.0-windows10.0.19041.0\win10-x64\XamlTypeInfo.g.cs
+C:\Users\caada\source\repos\HealPages\HealPages\obj\Debug\net8.0-windows10.0.19041.0\win10-x64\Platforms\Windows\App.xaml
+C:\Users\caada\source\repos\HealPages\HealPages\obj\Debug\net8.0-windows10.0.19041.0\win10-x64\Platforms\Windows\App.xbf
+C:\Users\caada\source\repos\HealPages\HealPages\obj\Debug\net8.0-windows10.0.19041.0\win10-x64\XamlSaveStateFile.xml
+C:\Users\caada\source\repos\HealPages\HealPages\obj\Debug\net8.0-windows10.0.19041.0\win10-x64\HealPages.GeneratedMSBuildEditorConfig.editorconfig
