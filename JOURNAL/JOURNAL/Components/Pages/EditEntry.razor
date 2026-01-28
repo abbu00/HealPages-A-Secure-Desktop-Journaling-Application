@@ -1,0 +1,273 @@
+@page "/entry/edit/{entryId:int}"
+@layout MainLayout
+
+@inject EntryService EntryService
+@inject EntryMoodService EntryMoodService
+@inject EntryTagService EntryTagService
+@inject MoodsService MoodsService
+@inject TagsService TagsService
+@inject UserSession UserSession
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<style>
+    @@keyframes gentle-float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-5px); }
+    }
+    .healing-float {
+        animation: gentle-float 4s ease-in-out infinite;
+    }
+    .input-healing {
+        background: rgba(255, 255, 255, 0.8);
+        border: 2px solid #d4c5e2;
+        color: #5a5a6f;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .input-healing:focus {
+        background: rgba(255, 255, 255, 1);
+        border-color: #a89cc4;
+        box-shadow: 0 0 15px rgba(168, 156, 196, 0.3);
+        outline: none;
+    }
+    .editor-container {
+        background: rgba(255, 255, 255, 0.8);
+        border: 2px solid #d4c5e2;
+        border-radius: 1.5rem;
+        padding: 1.5rem;
+    }
+    .editor-container:focus-within {
+        background: rgba(255, 255, 255, 1);
+        border-color: #a89cc4;
+        box-shadow: 0 0 15px rgba(168, 156, 196, 0.3);
+    }
+</style>
+
+<div class="min-h-screen px-4 py-8"
+     style="background: linear-gradient(180deg, #f5f0f8 0%, #f9f5fc 100%);">
+    
+    <div class="max-w-3xl mx-auto space-y-8">
+
+        <!-- Header -->
+        <div class="space-y-2">
+            <h1 class="text-4xl font-light text-gray-700" style="letter-spacing: 0.5px;">
+                Edit Entry
+            </h1>
+            <p class="text-sm text-gray-500 font-light">
+                Update your thoughts and feelings
+            </p>
+        </div>
+
+        <!-- Form Card -->
+        <div class="bg-white rounded-3xl p-8 shadow-lg space-y-8" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+
+            <!-- Title -->
+            <div>
+                <label class="block text-sm text-gray-600 mb-3 font-light">
+                    Title
+                </label>
+                <input type="text"
+                       class="w-full px-5 py-3 rounded-2xl input-healing transition-all duration-300"
+                       placeholder="What's the title of this entry?"
+                       @bind="_entryName" />
+            </div>
+
+            <!-- Editor -->
+            <div>
+                <label class="block text-sm text-gray-600 mb-3 font-light">
+                    Content
+                </label>
+                <div id="editor" class="editor-container" style="min-height: 16rem;"></div>
+            </div>
+
+            <!-- Primary Mood -->
+            <div>
+                <label class="block text-sm text-gray-600 mb-3 font-light">
+                    How are you feeling?
+                </label>
+                <div class="flex flex-wrap gap-2">
+                    @foreach (var mood in _allMoods)
+                    {
+                        <button type="button"
+                                class="px-4 py-2 text-sm rounded-full font-light transition-all duration-300"
+                                style="@(mood.Id == _selectedPrimaryId
+                                    ? "background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f; border: 2px solid #a89cc4;"
+                                    : "background: rgba(232, 223, 245, 0.3); color: #7a7a8f; border: 2px solid #d4c5e2;")"
+                                @onclick="() => SelectPrimaryMood(mood.Id)">
+                            @mood.Name
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <!-- Secondary Moods -->
+            <div>
+                <label class="block text-sm text-gray-600 mb-3 font-light">
+                    Also feeling...
+                </label>
+                <div class="flex flex-wrap gap-2">
+                    @foreach (var mood in _allMoods.Where(m => m.Id != _selectedPrimaryId))
+                    {
+                        <button type="button"
+                                class="px-4 py-2 text-sm rounded-full font-light transition-all duration-300"
+                                style="@(_selectedSecondaryIds.Contains(mood.Id)
+                                    ? "background: rgba(168, 156, 196, 0.4); color: #5a5a6f; border: 2px solid #a89cc4;"
+                                    : "background: rgba(212, 197, 226, 0.2); color: #8a8a9f; border: 2px solid #d4c5e2;")"
+                                @onclick="() => ToggleSecondaryMood(mood.Id)">
+                            @mood.Name
+                        </button>
+                    }
+                </div>
+                @if (_selectedSecondaryIds.Count == 2)
+                {
+                    <p class="text-xs text-gray-500 mt-2 font-light">Max two additional feelings selected</p>
+                }
+            </div>
+
+            <!-- Tags -->
+            <div>
+                <label class="block text-sm text-gray-600 mb-3 font-light">
+                    Topics
+                </label>
+                <div class="flex flex-wrap gap-2">
+                    @foreach (var tag in _allTags)
+                    {
+                        <button type="button"
+                                class="px-4 py-2 text-sm rounded-full font-light transition-all duration-300"
+                                style="@(_selectedTagIds.Contains(tag.Id)
+                                    ? "background: rgba(168, 156, 196, 0.3); color: #6a6a7f; border: 2px solid #a89cc4;"
+                                    : "background: rgba(232, 223, 245, 0.3); color: #8a8a9f; border: 2px solid #d4c5e2;")"
+                                @onclick="() => ToggleTag(tag.Id)">
+                            @tag.Name
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-3 pt-4">
+                <button @onclick="Cancel"
+                        class="px-6 py-3 rounded-2xl text-sm font-light transition-all duration-300"
+                        style="background: rgba(232, 223, 245, 0.4); color: #7a7a8f; border: 2px solid #d4c5e2;">
+                    Cancel
+                </button>
+
+                <button @onclick="SaveEntry"
+                        class="px-6 py-3 rounded-2xl text-sm font-light transition-all duration-300 hover:shadow-md active:scale-98"
+                        style="background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f;">
+                    Update Entry
+                </button>
+            </div>
+        </div>
+
+        <!-- Status -->
+        @if (!string.IsNullOrEmpty(_statusMessage))
+        {
+            <div class="p-4 rounded-2xl text-sm font-light"
+                 style="@(_isError 
+                    ? "background: rgba(227, 200, 200, 0.3); border-left: 3px solid #d4a5a5; color: #8a6a6a;"
+                    : "background: rgba(200, 227, 200, 0.3); border-left: 3px solid #a5d4a5; color: #6a8a6a;")">
+                @_statusMessage
+            </div>
+        }
+    </div>
+</div>
+
+
+@code {
+    [Parameter] public int EntryId { get; set; }
+
+    private Entry? _entry;
+    private string _entryName = "";
+    private string _entryContent = "";
+    private int _selectedPrimaryId;
+    private List<int> _selectedSecondaryIds = new();
+    private List<int> _selectedTagIds = new();
+    private List<Mood> _allMoods = new();
+    private List<Tag> _allTags = new();
+    private string _statusMessage = "";
+    private bool _isError;
+    private bool _isQuillInitialized;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserSession.IsAuthenticated)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        var userId = UserSession.CurrentUserId.Value;
+
+        _allMoods = await MoodsService.GetAllMoodsAsync() ?? new();
+        _allTags = await TagsService.GetAllTagsAsync() ?? new();
+
+        _entry = (await EntryService.GetEntriesByUserIdAsync(userId))
+                    .FirstOrDefault(e => e.Id == EntryId);
+
+        if (_entry != null)
+        {
+            _entryName = _entry.title ?? "";
+            _entryContent = _entry.content ?? "";
+
+            var moods = await EntryMoodService.FetchMoodsForUserEntryAsync(_entry.Id, userId);
+            _selectedPrimaryId = moods.FirstOrDefault(m => m.RelationshipType == "primary")?.MoodId ?? 0;
+            _selectedSecondaryIds = moods.Where(m => m.RelationshipType == "secondary").Select(m => m.MoodId).ToList();
+
+            var tags = await EntryTagService.FetchTagsForUserEntryAsync(_entry.Id, userId);
+            _selectedTagIds = tags.Select(t => t.tagId).ToList();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_isQuillInitialized)
+        {
+            await JS.InvokeVoidAsync("initQuill", "editor");
+            if (!string.IsNullOrWhiteSpace(_entryContent))
+                await JS.InvokeVoidAsync("setQuillHtml", _entryContent);
+            _isQuillInitialized = true;
+        }
+    }
+
+    private async Task SaveEntry()
+    {
+        _entryContent = await JS.InvokeAsync<string>("getQuillHtml");
+
+        if (_entry == null) return;
+
+        var userId = UserSession.CurrentUserId.Value;
+
+        await EntryService.ModifyUserEntryAsync(
+            _entry.Id,
+            userId,
+            _entryName,
+            _entryContent,
+            _selectedPrimaryId,
+            _selectedSecondaryIds.FirstOrDefault(),
+            _selectedSecondaryIds.Skip(1).ToList(),
+            _selectedTagIds
+        );
+
+        _statusMessage = "Entry updated!";
+        _isError = false;
+        StateHasChanged();
+
+        await Task.Delay(1000);
+        Nav.NavigateTo($"/entry/detail/{_entry.Id}");
+    }
+
+    private void Cancel() => Nav.NavigateTo("/Entry");
+
+    private void SelectPrimaryMood(int id) => _selectedPrimaryId = id;
+    private void ToggleSecondaryMood(int id)
+    {
+        if (_selectedSecondaryIds.Contains(id)) _selectedSecondaryIds.Remove(id);
+        else if (_selectedSecondaryIds.Count < 2) _selectedSecondaryIds.Add(id);
+    }
+    private void ToggleTag(int id)
+    {
+        if (_selectedTagIds.Contains(id)) _selectedTagIds.Remove(id);
+        else _selectedTagIds.Add(id);
+    }
+}

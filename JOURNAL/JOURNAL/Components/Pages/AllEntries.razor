@@ -1,0 +1,297 @@
+@page "/entry"
+@layout MainLayout
+@inject EntryService EntryService
+@inject UserSession UserSession
+@inject NavigationManager Nav
+
+<style>
+    @@keyframes gentle-float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-5px); }
+    }
+    .healing-float {
+        animation: gentle-float 4s ease-in-out infinite;
+    }
+    .entry-card {
+        background: rgba(255, 255, 255, 0.8);
+        border: 2px solid #d4c5e2;
+        transition: all 0.3s ease;
+    }
+    .entry-card:hover {
+        background: rgba(255, 255, 255, 1);
+        border-color: #a89cc4;
+        box-shadow: 0 10px 30px rgba(168, 156, 196, 0.15);
+    }
+</style>
+
+<div class="min-h-screen px-4 py-8 font-sans"
+     style="background: linear-gradient(180deg, #f5f0f8 0%, #f9f5fc 100%);">
+    
+    <main class="max-w-3xl mx-auto space-y-8">
+
+        <!-- Loading -->
+        @if (_isLoading)
+        {
+            <div class="flex justify-center py-20">
+                <div class="h-8 w-8 animate-spin rounded-full border-3" style="border-color: #d4c5e2; border-top-color: #a89cc4;"></div>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="bg-white rounded-3xl p-8 text-center space-y-4 shadow-lg" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+                <p class="text-sm text-gray-600 font-light">@_errorMessage</p>
+                <button @onclick="LoadEntries"
+                        class="px-6 py-3 text-sm rounded-2xl font-light transition-all duration-300 hover:shadow-md active:scale-98"
+                        style="background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f;">
+                    Retry
+                </button>
+            </div>
+        }
+        else
+        {
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-4xl font-light text-gray-700" style="letter-spacing: 0.5px;">
+                        Entries
+                    </h1>
+                    <p class="text-sm text-gray-500 mt-1 font-light">
+                        @_displayedEntries.Count of @_entries.Count entries
+                    </p>
+                </div>
+
+                <a href="/today"
+                   class="inline-flex items-center gap-2 px-6 py-3 text-sm font-light rounded-2xl transition-all duration-300 hover:shadow-md active:scale-98"
+                   style="background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f;">
+                    + New Entry
+                </a>
+            </div>
+
+            @if (_entries.Any())
+            {
+                <!-- Entries List -->
+                <div class="space-y-3">
+                    @foreach (var entry in _displayedEntries)
+                    {
+                        <div class="entry-card rounded-3xl p-6 cursor-pointer"
+                             @onclick="() => ViewEntry(entry.Id)">
+
+                            <div class="flex gap-5">
+
+                                <!-- Date -->
+                                <div class="w-16 text-center shrink-0 py-1">
+                                    <div class="text-2xl font-light text-gray-700 leading-none">
+                                        @entry.CreatedAt.Day
+                                    </div>
+                                    <div class="text-xs uppercase tracking-wide text-gray-500 mt-1 font-light">
+                                        @entry.CreatedAt.ToString("MMM")
+                                    </div>
+                                </div>
+
+                                <!-- Content -->
+                                <div class="flex-1 min-w-0 space-y-2">
+                                    <div class="font-light text-gray-800 truncate text-lg">
+                                        @(string.IsNullOrWhiteSpace(entry.title) ? "Untitled entry" : entry.title)
+                                    </div>
+
+                                    <div class="text-sm text-gray-600 leading-relaxed line-clamp-2 font-light">
+                                        @GetPreview(entry.content)
+                                    </div>
+
+                                    <div class="text-xs text-gray-500 pt-1 font-light">
+                                        @entry.CreatedAt.ToString("h:mm tt")
+                                        · @GetWordCount(entry.content) words
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Pagination -->
+                @if (_totalPages > 1)
+                {
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-sm">
+
+                        <span class="text-gray-500 font-light">
+                            Page @_currentPage of @_totalPages
+                        </span>
+
+                        <div class="flex items-center gap-1">
+                            <button @onclick="GoToPreviousPage"
+                                    disabled="@(_currentPage == 1)"
+                                    class="px-3 py-2 rounded-lg font-light transition-all"
+                                    style="@(_currentPage == 1
+                                        ? "background: rgba(212, 197, 226, 0.2); color: #a0a0b0; cursor: not-allowed; opacity: 0.5;"
+                                        : "background: rgba(232, 223, 245, 0.4); color: #7a7a8f; border: 1px solid #d4c5e2;")"
+                                    >
+                                ‹
+                            </button>
+
+                            @foreach (var page in GetVisiblePages())
+                            {
+                                <button @onclick="() => { if (page != -1) GoToPage(page); }"
+                                        disabled="@(page == -1)"
+                                        class="px-3 py-2 rounded-lg text-sm font-light transition-all"
+                                        style="@(page == _currentPage
+                                            ? "background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f; border: 2px solid #a89cc4;"
+                                            : page == -1
+                                                ? "color: #a0a0b0; cursor: default; border: none;"
+                                                : "background: rgba(232, 223, 245, 0.3); color: #7a7a8f; border: 1px solid #d4c5e2;")">
+                                    @(page == -1 ? "…" : page.ToString())
+                                </button>
+                            }
+
+                            <button @onclick="GoToNextPage"
+                                    disabled="@(_currentPage == _totalPages)"
+                                    class="px-3 py-2 rounded-lg font-light transition-all"
+                                    style="@(_currentPage == _totalPages
+                                        ? "background: rgba(212, 197, 226, 0.2); color: #a0a0b0; cursor: not-allowed; opacity: 0.5;"
+                                        : "background: rgba(232, 223, 245, 0.4); color: #7a7a8f; border: 1px solid #d4c5e2;")">
+                                ›
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-500 font-light">Show</span>
+                            <select @bind="ItemsPerPage"
+                                    class="border rounded-lg px-3 py-2 text-sm font-light"
+                                    style="border-color: #d4c5e2; background: rgba(255, 255, 255, 0.8); color: #5a5a6f;">
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <!-- Empty State -->
+                <div class="bg-white rounded-3xl p-12 text-center space-y-6 shadow-lg" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+                    <div class="healing-float inline-block">
+                        <span class="text-5xl">📝</span>
+                    </div>
+                    <p class="text-sm text-gray-500 font-light">
+                        You haven't written any entries yet.
+                    </p>
+                    <a href="/today"
+                       class="inline-block px-6 py-3 text-sm font-light rounded-2xl transition-all duration-300 hover:shadow-md active:scale-98"
+                       style="background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f;">
+                        Start writing
+                    </a>
+                </div>
+            }
+        }
+
+    </main>
+</div>
+
+
+@code {
+    private List<Entry> _entries = new();
+    private List<Entry> _displayedEntries = new();
+
+    private int _currentPage = 1;
+    private int _itemsPerPage = 10;
+    private int _totalPages;
+
+    private bool _isLoading = true;
+    private string _errorMessage = "";
+
+    private int ItemsPerPage
+    {
+        get => _itemsPerPage;
+        set
+        {
+            _itemsPerPage = value;
+            _currentPage = 1;
+            UpdatePagination();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserSession.IsAuthenticated)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        await LoadEntries();
+    }
+
+    private async Task LoadEntries()
+    {
+        _isLoading = true;
+        _errorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            _entries = await EntryService.GetEntriesByUserIdAsync(UserSession.CurrentUserId!.Value);
+            _entries = _entries.OrderByDescending(e => e.CreatedAt).ToList();
+        }
+        catch
+        {
+            _errorMessage = "Failed to load entries.";
+            _entries = new();
+        }
+        finally
+        {
+            _isLoading = false;
+            UpdatePagination();
+        }
+    }
+
+    private void UpdatePagination()
+    {
+        _totalPages = Math.Max(1, (int)Math.Ceiling((double)_entries.Count / _itemsPerPage));
+        _currentPage = Math.Clamp(_currentPage, 1, _totalPages);
+
+        _displayedEntries = _entries
+            .Skip((_currentPage - 1) * _itemsPerPage)
+            .Take(_itemsPerPage)
+            .ToList();
+
+        StateHasChanged();
+    }
+
+    private void GoToPage(int p) { _currentPage = p; UpdatePagination(); }
+    private void GoToPreviousPage() { if (_currentPage > 1) _currentPage--; UpdatePagination(); }
+    private void GoToNextPage() { if (_currentPage < _totalPages) _currentPage++; UpdatePagination(); }
+
+    private List<int> GetVisiblePages()
+    {
+        if (_totalPages <= 7)
+            return Enumerable.Range(1, _totalPages).ToList();
+
+        var pages = new List<int> { 1 };
+        if (_currentPage > 3) pages.Add(-1);
+
+        for (int i = Math.Max(2, _currentPage - 1); i <= Math.Min(_totalPages - 1, _currentPage + 1); i++)
+            pages.Add(i);
+
+        if (_currentPage < _totalPages - 2) pages.Add(-1);
+        pages.Add(_totalPages);
+
+        return pages;
+    }
+
+    private string GetPreview(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html)) return "No content";
+        var text = System.Text.RegularExpressions.Regex.Replace(html, "<.*?>", "");
+        return text.Length > 120 ? text[..120] + "…" : text;
+    }
+
+    private int GetWordCount(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html)) return 0;
+        var text = System.Text.RegularExpressions.Regex.Replace(html, "<.*?>", "");
+        return text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    private void ViewEntry(int id) => Nav.NavigateTo($"/entry/detail/{id}");
+}

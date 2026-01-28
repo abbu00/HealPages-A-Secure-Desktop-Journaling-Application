@@ -1,0 +1,196 @@
+@page "/entry/detail/{entryId:int}"
+@layout MainLayout
+
+@inject EntryService EntryService
+@inject EntryMoodService EntryMoodService
+@inject EntryTagService EntryTagService
+@inject UserSession UserSession
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<style>
+    .prose {
+        line-height: 1.8;
+        color: #5a5a6f;
+    }
+    .prose p {
+        margin-bottom: 1.25rem;
+    }
+    .prose strong {
+        color: #4a4a5f;
+        font-weight: 600;
+    }
+</style>
+
+<div class="min-h-screen px-4 py-8"
+     style="background: linear-gradient(180deg, #f5f0f8 0%, #f9f5fc 100%);">
+    
+    <div class="max-w-3xl mx-auto">
+        @if (_entry != null)
+        {
+            <!-- Header -->
+            <div class="mb-10 space-y-3">
+                <h1 class="text-5xl font-light text-gray-700" style="letter-spacing: 0.5px;">
+                    @(_entry.title ?? "Untitled")
+                </h1>
+                <p class="text-sm text-gray-500 font-light">
+                    @_entry.CreatedAt.ToLocalTime().ToString("MMMM d, yyyy • h:mm tt")
+                </p>
+            </div>
+
+            <!-- Content -->
+            <div class="bg-white rounded-3xl p-10 shadow-lg mb-8" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+                <div class="prose max-w-none">
+                    @((MarkupString)_entryContent)
+                </div>
+            </div>
+
+            <!-- Moods & Tags in One Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                
+                <!-- Moods Card -->
+                @if (_entryMoods.Any())
+                {
+                    <div class="bg-white rounded-3xl p-8 shadow-lg" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+                        <h3 class="text-sm text-gray-600 mb-4 font-light">Feelings</h3>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var mood in _entryMoods)
+                            {
+                                <span class="px-4 py-2 text-sm rounded-full font-light"
+                                      style="@(mood.RelationshipType == "primary"
+                                        ? "background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f; border: 2px solid #a89cc4;"
+                                        : "background: rgba(232, 223, 245, 0.4); color: #7a7a8f; border: 2px solid #d4c5e2;")">
+                                    @mood.Mood.Name
+                                </span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Tags Card -->
+                @if (_entryTags.Any())
+                {
+                    <div class="bg-white rounded-3xl p-8 shadow-lg" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+                        <h3 class="text-sm text-gray-600 mb-4 font-light">Topics</h3>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var tag in _entryTags)
+                            {
+                                <span class="px-4 py-2 text-sm rounded-full font-light"
+                                      style="background: rgba(168, 156, 196, 0.2); color: #6a6a7f; border: 2px solid #a89cc4;">
+                                    @tag.Tag.Name
+                                </span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-3">
+                <button @onclick="EditEntry"
+                        class="px-6 py-3 rounded-2xl text-sm font-light transition-all duration-300 hover:shadow-md active:scale-98"
+                        style="background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f;">
+                    Edit
+                </button>
+
+                <button @onclick="DeleteEntry"
+                        class="px-6 py-3 rounded-2xl text-sm font-light transition-all duration-300"
+                        style="background: rgba(232, 223, 245, 0.4); color: #7a7a8f; border: 2px solid #d4c5e2;">
+                    Delete
+                </button>
+            </div>
+
+            <!-- Status Message -->
+            @if (!string.IsNullOrEmpty(_statusMessage))
+            {
+                <div class="mt-8 p-4 rounded-2xl text-sm font-light"
+                     style="@(_isError 
+                        ? "background: rgba(227, 200, 200, 0.3); border-left: 3px solid #d4a5a5; color: #8a6a6a;"
+                        : "background: rgba(200, 227, 200, 0.3); border-left: 3px solid #a5d4a5; color: #6a8a6a;")">
+                    @_statusMessage
+                </div>
+            }
+        }
+        else
+        {
+            <div class="bg-white rounded-3xl p-12 text-center shadow-lg" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+                <div class="inline-block mb-4">
+                    <span class="text-5xl">📝</span>
+                </div>
+                <p class="text-gray-500 font-light">Entry not found.</p>
+            </div>
+        }
+
+    </div>
+</div>
+
+
+@code {
+    [Parameter] public int EntryId { get; set; }
+
+    private Entry? _entry;
+    private string _entryContent = "";
+    private string _statusMessage = "";
+    private List<EntryMood> _entryMoods = new();
+    private List<EntryTag> _entryTags = new();
+
+    private bool _isError;
+    private ElementReference _contentDiv;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserSession.IsAuthenticated || !UserSession.CurrentUserId.HasValue)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        var userId = UserSession.CurrentUserId.Value;
+
+        _entry = (await EntryService.GetEntriesByUserIdAsync(userId))
+            .FirstOrDefault(e => e.Id == EntryId);
+
+        if (_entry != null)
+        {
+            _entryContent = _entry.content ?? "";
+
+            _entryMoods = await EntryMoodService.FetchMoodsForUserEntryAsync(_entry.Id, userId);
+            _entryTags = await EntryTagService.FetchTagsForUserEntryAsync(_entry.Id, userId);
+        }
+    }
+
+
+    private void EditEntry() => Nav.NavigateTo($"/entry/edit/{EntryId}");
+
+    private async Task DeleteEntry()
+    {
+        if (_entry != null)
+        {
+            _entryContent = _entry.content ?? "";
+
+            var userId = UserSession.CurrentUserId.Value;
+
+            _entryMoods = await EntryMoodService.FetchMoodsForUserEntryAsync(_entry.Id, userId);
+            _entryTags = await EntryTagService.FetchTagsForUserEntryAsync(_entry.Id, userId);
+        }
+
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to delete this entry?");
+        if (!confirmed) return;
+
+        var result = await EntryService.DeleteUserEntryAsync(_entry.Id, UserSession.CurrentUserId.Value);
+        if (result)
+        {
+            _statusMessage = "Entry deleted.";
+            _isError = false;
+            StateHasChanged();
+            await Task.Delay(1000);
+            Nav.NavigateTo("/Entry");
+        }
+        else
+        {
+            _statusMessage = "Delete failed.";
+            _isError = true;
+        }
+    }
+}

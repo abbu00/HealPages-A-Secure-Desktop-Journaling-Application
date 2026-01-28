@@ -1,0 +1,121 @@
+@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+
+<style>
+    @@keyframes gentle-float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-5px); }
+    }
+    .healing-float {
+        animation: gentle-float 4s ease-in-out infinite;
+    }
+</style>
+
+<div class="flex min-h-screen font-sans">
+
+    <!-- Sidebar -->
+    <aside class="w-64 border-r-2 flex flex-col"
+           style="background: linear-gradient(180deg, #f5f0f8 0%, #f9f5fc 100%); border-color: #d4c5e2;">
+
+        <!-- Brand -->
+        <div class="px-8 py-8">
+            <div class="healing-float inline-block mb-2">
+                <span class="text-3xl">📔</span>
+            </div>
+            <h1 class="text-2xl font-light text-gray-700" style="letter-spacing: 0.5px;">
+                HealPages
+            </h1>
+            <p class="text-xs text-gray-500 font-light mt-1">
+                Private space for thoughts
+            </p>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 px-4 py-6 space-y-2">
+            @foreach (var item in SidebarItems)
+            {
+                <a href="@item.Href"
+                   class="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-light transition-all duration-300"
+                   style="@(ActivePage.Contains(item.Key)
+                       ? "background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f; border: 2px solid #a89cc4;"
+                       : "color: #7a7a8f; border: 2px solid transparent;")">
+                    <svg class="w-5 h-5 flex-shrink-0"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="1.5"
+                         viewBox="0 0 24 24">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="@item.Icon" />
+                    </svg>
+                    <span>@item.Label</span>
+                </a>
+            }
+        </nav>
+
+        <!-- Logout -->
+        <div class="p-4 border-t-2" style="border-color: #d4c5e2;">
+            <button @onclick="Logout"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm rounded-2xl font-light transition-all duration-300"
+                    style="background: rgba(232, 223, 245, 0.4); color: #7a7a8f; border: 2px solid #d4c5e2;">
+                <svg class="w-5 h-5"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="1.5"
+                     viewBox="0 0 24 24">
+                    <path stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3 h12.75" />
+                </svg>
+                Logout
+            </button>
+        </div>
+
+    </aside>
+
+    <!-- Main content -->
+    <main class="flex-1"
+          style="background: linear-gradient(180deg, #f5f0f8 0%, #f9f5fc 100%);">
+        @Body
+    </main>
+
+</div>
+
+@code {
+    private string ActivePage = "";
+
+    private void Logout()
+    {
+        NavigationManager.NavigateTo("/login", true);
+    }
+
+    protected override void OnInitialized()
+    {
+        SetActivePage();
+        NavigationManager.LocationChanged += (_, __) => SetActivePage();
+    }
+
+    private void SetActivePage()
+    {
+        var path = new Uri(NavigationManager.Uri).AbsolutePath.Trim('/').ToLower();
+        
+        if (path.Contains("dashboard")) ActivePage = "dashboard";
+        else if (path.Contains("today")) ActivePage = "today";
+        else if (path.Contains("entry")) ActivePage = "entries";
+        else if (path.Contains("calendar")) ActivePage = "calendar";
+        else if (path.Contains("search")) ActivePage = "search";
+        else ActivePage = path;
+        
+        StateHasChanged();
+    }
+
+    private record SidebarItem(string Label, string Href, string Key, string Icon);
+
+    private List<SidebarItem> SidebarItems = new()
+    {
+        new("Dashboard", "/dashboard", "dashboard", "M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"),
+        new("Write",  "/today", "today", "M12 4.5v15m7.5-7.5h-15"),
+        new("Entries", "/entry", "entries", "M9 6.75V15m6-6v8.25m.503-6.257l-1.07-3.209A2.25 2.25 0 0 0 11.227 4.5H4.772c-.997 0-1.899.586-2.331 1.491l-1.07 3.209A2.25 2.25 0 0 0 1.5 7.75m15 0a2.25 2.25 0 0 0-2.331-1.591H4.771c-.997 0-1.899.586-2.331 1.491m15 0a2.25 2.25 0 0 1 2.25 2.25v6a2.25 2.25 0 0 1-2.25 2.25H3.75a2.25 2.25 0 0 1-2.25-2.25v-6a2.25 2.25 0 0 1 2.25-2.25m15 0h-16.5"),
+        new("Search", "/search", "search", "m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607z")
+    };
+}

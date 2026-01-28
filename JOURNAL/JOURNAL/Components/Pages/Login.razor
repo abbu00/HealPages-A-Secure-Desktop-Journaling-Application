@@ -1,0 +1,143 @@
+@page "/login"
+@inject NavigationManager Nav
+@layout SignupLayout
+@inject UserService UserService
+
+<style>
+    @@keyframes gentle-float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-5px); }
+    }
+    @@keyframes soft-pulse {
+        0%, 100% { opacity: 0.7; }
+        50% { opacity: 1; }
+    }
+    .healing-float {
+        animation: gentle-float 4s ease-in-out infinite;
+    }
+    .input-healing {
+        background: rgba(255, 255, 255, 0.8);
+        border: 2px solid #d4c5e2;
+        color: #5a5a6f;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .input-healing::placeholder {
+        color: #b0b0b0;
+    }
+    .input-healing:focus {
+        background: rgba(255, 255, 255, 1);
+        border-color: #a89cc4;
+        box-shadow: 0 0 15px rgba(168, 156, 196, 0.3);
+        outline: none;
+    }
+</style>
+
+<div class="min-h-screen flex items-center justify-center px-4"
+     style="background: linear-gradient(180deg, #f5f0f8 0%, #f9f5fc 100%);">
+
+    <div class="w-full max-w-sm">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <div class="healing-float inline-block mb-5">
+                <span class="text-5xl">📔</span>
+            </div>
+            <h1 class="text-3xl font-light text-gray-700 mb-2" style="letter-spacing: 0.5px;">
+                Your Journal
+            </h1>
+            <p class="text-base text-gray-500 font-light">
+                A quiet place for your thoughts
+            </p>
+        </div>
+
+        <!-- Card -->
+        <div class="bg-white rounded-3xl p-8 shadow-lg" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.15);">
+            <EditForm Model="_userDetail" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                <!-- Username Field -->
+                <div class="mb-6">
+                    <label class="block text-sm text-gray-600 mb-3 font-light">Username</label>
+                    <InputText
+                        @bind-Value="_userDetail.Username"
+                        placeholder="Enter your username"
+                        class="w-full px-5 py-3 rounded-2xl input-healing transition-all duration-300" />
+                </div>
+
+                <!-- PIN Field -->
+                <div class="mb-8">
+                    <label class="block text-sm text-gray-600 mb-3 font-light">PIN Code</label>
+                    <InputText
+                        type="password"
+                        maxlength="4"
+                        @bind-Value="_userDetail.PinCode"
+                        placeholder="••••"
+                        class="w-full px-5 py-3 rounded-2xl text-center tracking-wider font-light input-healing transition-all duration-300" />
+                </div>
+
+                <!-- Error Message -->
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                <div class="mb-6 p-4 rounded-2xl text-sm text-gray-600" style="background: rgba(227, 200, 200, 0.3); border-left: 3px solid #d4a5a5;">
+                    @_error
+                </div>
+                }
+
+                <!-- Login Button -->
+                <button type="submit"
+                        class="w-full py-3 rounded-2xl text-gray-700 font-light transition-all duration-300 hover:shadow-md active:scale-98"
+                        style="background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%);">
+                    Continue
+                </button>
+            </EditForm>
+
+            <!-- Divider -->
+            <div class="my-7 border-t border-gray-200"></div>
+
+            <!-- Register Button -->
+            <button type="button"
+                    class="w-full py-3 rounded-2xl text-gray-600 font-light transition-all duration-300"
+                    style="background: rgba(232, 223, 245, 0.4);"
+                    @onclick="GoToRegister">
+                Create New Account
+            </button>
+        </div>
+
+        <!-- Footer -->
+        <p class="text-center text-sm text-gray-500 mt-8 font-light">
+            Your thoughts are private and secure
+        </p>
+    </div>
+</div>
+
+@code {
+private User _userDetail = new();
+private string? _error;
+
+[Inject] private UserSession UserSession { get; set; }
+
+private async Task HandleLogin()
+{
+if (string.IsNullOrWhiteSpace(_userDetail.Username) ||
+string.IsNullOrWhiteSpace(_userDetail.PinCode))
+{
+_error = "Please enter your journal name and PIN";
+return;
+}
+
+var user = await UserService.AuthenticateAsync(_userDetail.Username, _userDetail.PinCode);
+
+if (user == null)
+{
+_error = "Incorrect journal name or PIN. Try again";
+return;
+}
+
+UserSession.SetUser(user.Id);
+Nav.NavigateTo("/dashboard", replace: true);
+}
+
+private void GoToRegister()
+{
+Nav.NavigateTo("/register");
+}
+}

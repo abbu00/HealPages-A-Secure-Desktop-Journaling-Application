@@ -1,0 +1,524 @@
+@page "/search"
+@using System.Text
+@layout MainLayout
+
+@inject EntryService EntryService
+@inject MoodsService MoodsService
+@inject TagsService TagsService
+@inject EntryMoodService EntryMoodService
+@inject EntryTagService EntryTagService
+@inject IJSRuntime JS
+@inject UserSession UserSession
+@inject NavigationManager Nav
+
+<style>
+    @@keyframes gentle-float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-5px); }
+    }
+    .healing-float {
+        animation: gentle-float 4s ease-in-out infinite;
+    }
+    .filter-input {
+        width: 100%;
+        padding: 0.75rem;
+        border-radius: 1rem;
+        border: 2px solid #d4c5e2;
+        background: rgba(255, 255, 255, 0.8);
+        color: #5a5a6f;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 0.875rem;
+    }
+    .filter-input:focus {
+        background: rgba(255, 255, 255, 1);
+        border-color: #a89cc4;
+        box-shadow: 0 0 15px rgba(168, 156, 196, 0.3);
+        outline: none;
+    }
+    .filter-input::placeholder {
+        color: #b0b0b0;
+    }
+</style>
+
+<div class="min-h-screen px-4 py-8"
+     style="background: linear-gradient(180deg, #f5f0f8 0%, #f9f5fc 100%);">
+    
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8 space-y-2">
+            <h1 class="text-4xl font-light text-gray-700" style="letter-spacing: 0.5px;">
+                Search
+            </h1>
+            <p class="text-sm text-gray-500 font-light">
+                Find entries by keywords, dates, feelings, or topics
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <!-- Search Panel - Sidebar -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-3xl p-6 shadow-lg sticky top-8" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+                    <h2 class="text-lg font-light text-gray-700 mb-5" style="letter-spacing: 0.3px;">Filters</h2>
+                    
+                    <div class="space-y-5">
+                        <!-- Search Input -->
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-2 font-light">Keywords</label>
+                            <input type="text"
+                                   @bind="_searchQuery"
+                                   @bind:event="oninput"
+                                   @onkeyup="OnSearchKeyUp"
+                                   placeholder="Search..."
+                                   class="filter-input w-full transition-all duration-300" />
+                        </div>
+
+                        <!-- From Date -->
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-2 font-light">From</label>
+                            <input type="date" 
+                                   @bind="_fromDate" 
+                                   class="filter-input w-full transition-all duration-300" />
+                        </div>
+
+                        <!-- To Date -->
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-2 font-light">To</label>
+                            <input type="date" 
+                                   @bind="_toDate" 
+                                   class="filter-input w-full transition-all duration-300" />
+                        </div>
+
+                        <!-- Tags -->
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-2 font-light">Topics</label>
+                            <select @bind="_selectedTagId" class="filter-input w-full transition-all duration-300">
+                                <option value="0">All topics</option>
+                                @foreach (var tag in _allTags)
+                                {
+                                    <option value="@tag.Id">@tag.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="space-y-2 pt-3 border-t border-gray-200">
+                            <button @onclick="SearchEntry"
+                                    class="w-full px-4 py-3 rounded-2xl text-sm font-light transition-all duration-300 hover:shadow-md active:scale-98"
+                                    style="background: linear-gradient(180deg, #e8dff5 0%, #ddd0e8 100%); color: #5a5a6f;">
+                                Search
+                            </button>
+
+                            <button @onclick="ResetFilters"
+                                    class="w-full px-4 py-3 rounded-2xl text-sm font-light transition-all duration-300"
+                                    style="background: rgba(232, 223, 245, 0.4); color: #7a7a8f; border: 2px solid #d4c5e2;">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results - Main Content -->
+            <div class="lg:col-span-3">
+                <!-- Loading -->
+                @if (_isLoading)
+                {
+                    <div class="flex justify-center py-12">
+                        <div class="h-8 w-8 animate-spin rounded-full border-3" style="border-color: #d4c5e2; border-top-color: #a89cc4;"></div>
+                    </div>
+                }
+                else
+                {
+                    <!-- Results Header -->
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 class="text-2xl font-light text-gray-700" style="letter-spacing: 0.3px;">
+                                Results
+                            </h2>
+                            <p class="text-sm text-gray-500 mt-1 font-light">
+                                @_searchResults.Count @(_searchResults.Count == 1 ? "entry" : "entries") found
+                            </p>
+                        </div>
+
+                        @if (_searchResults.Any())
+                        {
+                            <button @onclick="ExportPdfLocal"
+                                    disabled="@_isExporting"
+                                    class="px-6 py-3 rounded-2xl text-sm font-light transition-all duration-300"
+                                    style="background: rgba(232, 223, 245, 0.4); color: #7a7a8f; border: 2px solid #d4c5e2;">
+                                @if (_isExporting)
+                                {
+                                    <span>Exporting...</span>
+                                }
+                                else
+                                {
+                                    <span>Export PDF</span>
+                                }
+                            </button>
+                        }
+                    </div>
+
+                    <!-- Empty State -->
+                    @if (!_searchResults.Any())
+                    {
+                        <div class="bg-white rounded-3xl p-12 text-center shadow-lg" style="box-shadow: 0 10px 40px rgba(168, 156, 196, 0.12);">
+                            <div class="healing-float inline-block mb-4">
+                                <span class="text-5xl">🔍</span>
+                            </div>
+                            <p class="text-gray-500 font-light">
+                                No entries matched your search.
+                            </p>
+                            <p class="text-sm text-gray-400 font-light mt-2">
+                                Try adjusting your keywords or filters.
+                            </p>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Results List -->
+                        <div class="space-y-4">
+                            @foreach (var entry in _searchResults)
+                            {
+                                <article class="bg-white rounded-3xl p-6 cursor-pointer shadow-lg transition-all duration-300"
+                                         style="border: 2px solid #d4c5e2; box-shadow: 0 10px 40px rgba(168, 156, 196, 0.08);"
+                                         @onmouseenter="e => HoverEnter(e)"
+                                         @onmouseleave="e => HoverLeave(e)"
+                                         @onclick="() => ViewEntry(entry.Id)">
+
+                                    <h3 class="text-lg font-light text-gray-700 mb-2" style="letter-spacing: 0.3px;">
+                                        @(entry.title ?? "Untitled entry")
+                                    </h3>
+
+                                    <p class="text-sm text-gray-600 leading-relaxed line-clamp-2 font-light mb-4">
+                                        @GetPreview(entry.content)
+                                    </p>
+
+                                    <div class="flex gap-4 text-xs text-gray-500 font-light">
+                                        <span>@entry.CreatedAt.ToString("MMM d, yyyy")</span>
+                                        <span>@GetWordCount(entry.content) words</span>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Entry> _allEntry = new();
+    private List<Entry> _searchResults = new();
+    private List<Mood> _allMoods = new();
+    private List<Tag> _allTags = new();
+
+    private string _searchQuery = "";
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+    private int _selectedMoodId;
+    private int _selectedTagId;
+
+    private bool _isLoading;
+    private bool _isExporting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserSession.IsAuthenticated)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        var userId = UserSession.CurrentUserId!.Value;
+
+        _allEntry = await EntryService.GetEntriesByUserIdAsync(userId);
+        _allMoods = await MoodsService.GetMoodsByUserIdAsync(userId);
+        _allTags = await TagsService.GetTagsByUserIdAsync(userId);
+
+        await PerformSearch();
+    }
+
+    private async Task ExportPdfLocal()
+    {
+        if (!_searchResults.Any())
+        {
+            await ShowAlert("No entries to export");
+            return;
+        }
+
+        try
+        {
+            _isExporting = true;
+            StateHasChanged();
+
+            var htmlContent = GenerateHtmlForPdf();
+            Console.WriteLine("Generating PDF...");
+
+            var base64Pdf = await JS.InvokeAsync<string>("generatePdfBase64", htmlContent);
+            var pdfBytes = Convert.FromBase64String(base64Pdf);
+
+            var fileName = $"Entries_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            var filePath = Path.Combine(FileSystem.CacheDirectory, fileName);
+            await File.WriteAllBytesAsync(filePath, pdfBytes);
+
+            Console.WriteLine($"PDF saved at: {filePath}");
+
+            await Share.RequestAsync(new ShareFileRequest
+            {
+                Title = "Export Entries",
+                File = new ShareFile(filePath)
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"PDF export error: {ex}");
+            await ShowAlert("PDF export failed. Check console for details.");
+        }
+        finally
+        {
+            _isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task PerformSearch()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            if (!UserSession.IsAuthenticated)
+            {
+                _searchResults = new List<Entry>();
+                return;
+            }
+
+            var userId = UserSession.CurrentUserId.Value;
+            var results = _allEntry.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                var query = _searchQuery.ToLower();
+                results = results.Where(e =>
+                    (!string.IsNullOrEmpty(e.title) && e.title.ToLower().Contains(query)) ||
+                    (!string.IsNullOrEmpty(e.content) && e.content.ToLower().Contains(query)));
+            }
+
+            if (_fromDate.HasValue)
+            {
+                results = results.Where(e => e.CreatedAt.Date >= _fromDate.Value.Date);
+            }
+
+            if (_toDate.HasValue)
+            {
+                results = results.Where(e => e.CreatedAt.Date <= _toDate.Value.Date);
+            }
+
+            if (_selectedTagId > 0)
+            {
+                var entriesWithTag = new List<Entry>();
+                var resultsList = results.ToList();
+
+                foreach (var entry in resultsList)
+                {
+                    try
+                    {
+                        var entryTags = await EntryTagService.FetchTagsForUserEntryAsync(entry.Id, userId);
+                        if (entryTags.Any(et => et.tagId == _selectedTagId))
+                        {
+                            entriesWithTag.Add(entry);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error checking tag for entry {entry.Id}: {ex.Message}");
+                    }
+                }
+                results = entriesWithTag.AsQueryable();
+            }
+
+            _searchResults = results.OrderByDescending(e => e.CreatedAt).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Search error: {ex.Message}");
+            await ShowAlert($"Search error: {ex.Message}");
+            _searchResults = new List<Entry>();
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchEntry();
+        }
+    }
+
+    private async Task SearchEntry()
+    {
+        await PerformSearch();
+    }
+
+    private async Task ResetFilters()
+    {
+        _searchQuery = "";
+        _fromDate = null;
+        _toDate = null;
+        _selectedMoodId = 0;
+        _selectedTagId = 0;
+
+        await PerformSearch();
+    }
+
+    private void ViewEntry(int entryId)
+    {
+        Nav.NavigateTo($"/entry/detail/{entryId}");
+    }
+
+    private void HoverEnter(MouseEventArgs e) { }
+    private void HoverLeave(MouseEventArgs e) { }
+
+    private string GenerateHtmlForPdf(bool darkTheme = false)
+    {
+        var sb = new StringBuilder();
+
+        string bodyBg = darkTheme ? "#1a1a1a" : "#ffffff";
+        string textColor = darkTheme ? "#d0d0d0" : "#222222";
+        string headerBg = darkTheme ? "#2a2a2a" : "#f5f0f8";
+        string headerText = darkTheme ? "#ffffff" : "#5a5a6f";
+        string entryBg = darkTheme ? "#262626" : "#f9f5fc";
+        string entryBorder = darkTheme ? "#404040" : "#d4c5e2";
+        string metaColor = darkTheme ? "#888888" : "#999999";
+        string accentColor = darkTheme ? "#a89cc4" : "#a89cc4";
+
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html lang='en'>");
+        sb.AppendLine("<head>");
+        sb.AppendLine("    <meta charset='UTF-8'>");
+        sb.AppendLine("    <meta name='viewport' content='width=device-width, initial-scale=1.0'>");
+        sb.AppendLine("    <title>Entries Export</title>");
+        sb.AppendLine("    <style>");
+        sb.AppendLine("        @page { margin: 0.75in; }");
+        sb.AppendLine("        * { margin: 0; padding: 0; box-sizing: border-box; }");
+        sb.AppendLine($"        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: {bodyBg}; color: {textColor}; line-height: 1.7; font-size: 11pt; }}");
+        
+        sb.AppendLine($"        .header {{ background-color: {headerBg}; color: {headerText}; padding: 30px 35px; margin-bottom: 30px; page-break-inside: avoid; border-left: 4px solid {accentColor}; }}");
+        sb.AppendLine("        .header h1 { font-size: 24px; font-weight: 300; margin-bottom: 10px; letter-spacing: 0.5px; }");
+        sb.AppendLine($"        .header-info {{ margin-top: 15px; font-size: 10pt; color: {metaColor}; }}");
+        
+        sb.AppendLine($"        .entry {{ background-color: {entryBg}; border: 2px solid {entryBorder}; border-left: 4px solid {accentColor}; padding: 20px; margin-bottom: 20px; page-break-inside: avoid; border-radius: 8px; }}");
+        sb.AppendLine($"        .entry-title {{ font-size: 14pt; font-weight: 300; color: {accentColor}; margin-bottom: 12px; letter-spacing: 0.3px; }}");
+        sb.AppendLine($"        .entry-content {{ font-size: 11pt; line-height: 1.7; margin: 15px 0; color: {textColor}; }}");
+        sb.AppendLine($"        .entry-meta {{ margin-top: 15px; padding-top: 15px; border-top: 1px solid {entryBorder}; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; }}");
+        sb.AppendLine($"        .meta-item {{ font-size: 10pt; }}");
+        sb.AppendLine($"        .meta-label {{ font-weight: 600; color: {metaColor}; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.3px; }}");
+        sb.AppendLine($"        .meta-value {{ margin-top: 4px; color: {textColor}; font-size: 11pt; }}");
+        
+        sb.AppendLine($"        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 2px solid {entryBorder}; text-align: center; font-size: 10pt; color: {metaColor}; }}");
+        
+        sb.AppendLine("    </style>");
+        sb.AppendLine("</head>");
+        sb.AppendLine("<body>");
+
+        // Header
+        sb.AppendLine("    <div class='header'>");
+        sb.AppendLine("        <h1>Entries Export</h1>");
+        sb.AppendLine("        <div class='header-info'>");
+        sb.AppendLine($"            <p>Exported: {DateTime.Now:MMMM d, yyyy} at {DateTime.Now:h:mm tt}</p>");
+        sb.AppendLine($"            <p>Total Entries: {_searchResults.Count}</p>");
+        if (!string.IsNullOrEmpty(_searchQuery))
+        {
+            sb.AppendLine($"            <p>Search: {EscapeHtml(_searchQuery)}</p>");
+        }
+        sb.AppendLine("        </div>");
+        sb.AppendLine("    </div>");
+
+        // Entries
+        int index = 1;
+        foreach (var entry in _searchResults)
+        {
+            sb.AppendLine("    <div class='entry'>");
+            sb.AppendLine($"        <div class='entry-title'>{EscapeHtml(entry.title ?? "Untitled")}</div>");
+
+            var content = string.IsNullOrEmpty(entry.content) ? "No content" : GetPlainText(entry.content);
+            sb.AppendLine($"        <div class='entry-content'>{content}</div>");
+
+            sb.AppendLine("        <div class='entry-meta'>");
+            sb.AppendLine("            <div class='meta-item'>");
+            sb.AppendLine("                <div class='meta-label'>Date</div>");
+            sb.AppendLine($"                <div class='meta-value'>{entry.CreatedAt:MMM dd, yyyy}</div>");
+            sb.AppendLine("            </div>");
+            sb.AppendLine("            <div class='meta-item'>");
+            sb.AppendLine("                <div class='meta-label'>Words</div>");
+            sb.AppendLine($"                <div class='meta-value'>{GetWordCount(entry.content)}</div>");
+            sb.AppendLine("            </div>");
+            sb.AppendLine("        </div>");
+            sb.AppendLine("    </div>");
+            
+            index++;
+        }
+
+        // Footer
+        sb.AppendLine("    <div class='footer'>");
+        sb.AppendLine($"        <p>Entries Export • {DateTime.Now:yyyy-MM-dd}</p>");
+        sb.AppendLine("    </div>");
+
+        sb.AppendLine("</body>");
+        sb.AppendLine("</html>");
+
+        return sb.ToString();
+    }
+
+    private string GetPreview(string htmlContent)
+    {
+        if (string.IsNullOrEmpty(htmlContent))
+            return "No content";
+
+        var plainText = GetPlainText(htmlContent);
+        return plainText.Length > 150 ? plainText.Substring(0, 150) + "…" : plainText;
+    }
+
+    private string GetPlainText(string htmlContent)
+    {
+        if (string.IsNullOrEmpty(htmlContent))
+            return string.Empty;
+
+        var plainText = System.Text.RegularExpressions.Regex.Replace(htmlContent, "<.*?>", string.Empty);
+        plainText = System.Net.WebUtility.HtmlDecode(plainText);
+        plainText = System.Text.RegularExpressions.Regex.Replace(plainText, @"\s+", " ");
+        return plainText.Trim();
+    }
+
+    private int GetWordCount(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return 0;
+
+        var plainText = GetPlainText(text);
+        var words = plainText.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        return words.Length;
+    }
+
+    private string EscapeHtml(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return string.Empty;
+
+        return System.Net.WebUtility.HtmlEncode(text);
+    }
+
+    private async Task ShowAlert(string message)
+    {
+        await JS.InvokeVoidAsync("alert", message);
+    }
+}

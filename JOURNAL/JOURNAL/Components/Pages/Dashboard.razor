@@ -1,0 +1,227 @@
+@page "/dashboard"
+@inject EntryService EntryService
+@inject MoodsService MoodsService
+@inject TagsService TagsService
+@inject UserSession UserSession
+@inject NavigationManager Nav
+@inject EntryTagService EntryTagService
+
+<div class="min-h-screen p-6 md:p-12"
+     style="background: linear-gradient(180deg, #f5f0f8 0%, #f9f5fc 100%);">
+
+    <div class="max-w-2xl">
+        <!-- Simple Header -->
+        <div class="mb-16">
+            <h1 class="text-5xl font-light text-gray-700 mb-1" style="letter-spacing: 0.5px;">
+                Dashboard
+            </h1>
+            <p class="text-sm text-gray-500 font-light">
+                @(TotalEntry == 0 ? "No entries yet. Start writing." : $"{TotalEntry} entries so far.")
+            </p>
+        </div>
+
+        <!-- Main Stats - Simple Clean -->
+        <div class="space-y-6 mb-16">
+            
+            <!-- Current Streak -->
+            <div class="flex items-baseline justify-between py-5 border-b" style="border-color: #e8dfe8;">
+                <p class="text-gray-500 font-light">Current Streak</p>
+                <p class="text-4xl font-light text-gray-700">@CurrentStreak</p>
+            </div>
+
+            <!-- Longest Streak -->
+            <div class="flex items-baseline justify-between py-5 border-b" style="border-color: #e8dfe8;">
+                <p class="text-gray-500 font-light">Longest Streak</p>
+                <p class="text-4xl font-light text-gray-700">@LongestStreak</p>
+            </div>
+
+            <!-- Total Entries -->
+            <div class="flex items-baseline justify-between py-5 border-b" style="border-color: #e8dfe8;">
+                <p class="text-gray-500 font-light">Total Entries</p>
+                <p class="text-4xl font-light text-gray-700">@TotalEntry</p>
+            </div>
+
+        </div>
+
+        <!-- Recent Activity - Ultra Simple -->
+        @if (TotalEntry > 0)
+        {
+            <div class="mb-16">
+                <h2 class="text-lg font-light text-gray-700 mb-6" style="letter-spacing: 0.3px;">Last Entry</h2>
+                @if (_userEntry.Any())
+                {
+                    var lastEntry = _userEntry.Max(e => e.CreatedAt);
+                    <p class="text-sm text-gray-600 font-light">@lastEntry.ToString("MMMM d, yyyy")</p>
+                }
+            </div>
+        }
+
+        <!-- Quick Stats -->
+        @if (TotalEntry > 0)
+        {
+            <div class="space-y-6">
+                <h2 class="text-lg font-light text-gray-700" style="letter-spacing: 0.3px;">More</h2>
+                
+                <div class="flex items-baseline justify-between py-5 border-b" style="border-color: #e8dfe8;">
+                    <p class="text-gray-500 font-light">Days Missed</p>
+                    <p class="text-4xl font-light text-gray-700">@_missedDays</p>
+                </div>
+
+                <div class="flex items-baseline justify-between py-5 border-b" style="border-color: #e8dfe8;">
+                    <p class="text-gray-500 font-light">Longest Break</p>
+                    <p class="text-4xl font-light text-gray-700">@_longestMissedStreak</p>
+                </div>
+
+                @if (FrequentMoods.Any())
+                {
+                    <div class="flex items-baseline justify-between py-5 border-b" style="border-color: #e8dfe8;">
+                        <p class="text-gray-500 font-light">Most Used Feeling</p>
+                        <p class="text-lg font-light text-gray-700">@FrequentMoods.First().Name</p>
+                    </div>
+                }
+
+                @if (FrequentTags.Any())
+                {
+                    <div class="flex items-baseline justify-between py-5 border-b" style="border-color: #e8dfe8;">
+                        <p class="text-gray-500 font-light">Most Used Topic</p>
+                        <p class="text-lg font-light text-gray-700">@FrequentTags.First().Name</p>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-12">
+                <p class="text-gray-500 font-light text-lg">Ready to start writing?</p>
+                <p class="text-sm text-gray-400 font-light mt-2">Your first entry will appear here.</p>
+            </div>
+        }
+
+    </div>
+</div>
+
+@code {
+    private int TotalEntry = 0;
+    private int CurrentStreak = 0;
+    private int LongestStreak = 0;
+
+    private int _missedDays = 0;
+    private int _longestMissedStreak = 0;
+    private List<string> _missedDateRanges = new();
+
+    private List<(string Name, int Count)> FrequentMoods = new();
+    private List<(string Name, int Count)> FrequentTags = new();
+
+    private List<Entry> _userEntry = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserSession.IsAuthenticated)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        var userId = UserSession.CurrentUserId.Value;
+        _userEntry = await EntryService.GetEntriesByUserIdAsync(userId);
+        TotalEntry = _userEntry.Count;
+
+        if (TotalEntry > 0)
+        {
+            var ordered = _userEntry.OrderByDescending(e => e.CreatedAt).ToList();
+            LongestStreak = ComputeLongestStreak(ordered);
+            CurrentStreak = ComputeCurrentStreak(ordered);
+            CalculateMissedDays();
+        }
+
+        var tagCountsDict = await TagsService.GetTagCountsByUserIdAsync(userId);
+        FrequentTags = tagCountsDict
+            .OrderByDescending(tc => tc.Value)
+            .Take(4)
+            .Select(tc => (tc.Key.Name, tc.Value))
+            .ToList();
+
+        var moodCountsDict = await MoodsService.GetMoodCountsByUserIdAsync(userId);
+        FrequentMoods = moodCountsDict
+            .OrderByDescending(mc => mc.Value)
+            .Take(4)
+            .Select(mc => (mc.Key.Name, mc.Value))
+            .ToList();
+    }
+
+    private void CalculateMissedDays()
+    {
+        if (!_userEntry.Any())
+        {
+            _missedDays = 0;
+            _longestMissedStreak = 0;
+            _missedDateRanges.Clear();
+            return;
+        }
+
+        var today = DateTime.UtcNow.Date;
+        var entryDates = _userEntry.Select(e => e.CreatedAt.Date).Distinct().OrderBy(d => d).ToList();
+
+        var missedDays = 0;
+        var longestMissed = 0;
+        var ranges = new List<string>();
+
+        for (int i = 1; i < entryDates.Count; i++)
+        {
+            var gap = (entryDates[i] - entryDates[i - 1]).Days - 1;
+            if (gap > 0)
+            {
+                missedDays += gap;
+                if (gap > longestMissed) longestMissed = gap;
+                ranges.Add(gap == 1 ? $"Paused on {entryDates[i - 1].AddDays(1):MMM d}" :
+                            gap <= 7 ? $"Break from {entryDates[i - 1].AddDays(1):MMM d} to {entryDates[i].AddDays(-1):MMM d}" :
+                            $"Extended pause of {gap} days");
+            }
+        }
+
+        var lastEntry = entryDates.Last();
+        var daysSinceLast = (today - lastEntry).Days;
+        if (daysSinceLast > 0)
+        {
+            missedDays += daysSinceLast;
+            if (daysSinceLast > longestMissed) longestMissed = daysSinceLast;
+            ranges.Add(daysSinceLast == 1 ? "Writing paused yesterday" :
+                       daysSinceLast <= 7 ? $"No writing since {lastEntry.AddDays(1):MMM d}" :
+                       $"Haven't written for {daysSinceLast} days");
+        }
+
+        _missedDays = missedDays;
+        _longestMissedStreak = longestMissed;
+        _missedDateRanges = ranges.Take(3).ToList();
+    }
+
+    private int ComputeCurrentStreak(List<Entry> Entry)
+    {
+        int streak = 0;
+        var today = DateTime.Today;
+        foreach (var entry in Entry.OrderByDescending(e => e.CreatedAt))
+        {
+            if ((today - entry.CreatedAt.Date).TotalDays == streak)
+                streak++;
+            else
+                break;
+        }
+        return streak;
+    }
+
+    private int ComputeLongestStreak(List<Entry> Entry)
+    {
+        int maxStreak = 0, streak = 1;
+        for (int i = 1; i < Entry.Count; i++)
+        {
+            if ((Entry[i - 1].CreatedAt.Date - Entry[i].CreatedAt.Date).TotalDays == 1)
+                streak++;
+            else
+            {
+                if (streak > maxStreak) maxStreak = streak;
+                streak = 1;
+            }
+        }
+        return Math.Max(maxStreak, streak);
+    }
+}
